@@ -116,22 +116,23 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
                                         "c.TABLE_NAME, " +
                                         "c.COLUMN_NAME, " +
                                         "c.COLUMN_POSITION AS ORDINAL_POSITION, " +
-                                        "e.COLUMN_EXPRESSION AS FILTER_CONDITION, " +
+                                        (database instanceof DmDatabase ?"": "e.COLUMN_EXPRESSION AS FILTER_CONDITION, ") +
                                         "CASE I.UNIQUENESS WHEN 'UNIQUE' THEN 0 ELSE 1 END AS NON_UNIQUE, " +
                                         "CASE c.DESCEND WHEN 'Y' THEN 'D' WHEN 'DESC' THEN 'D' WHEN 'N' THEN 'A' WHEN 'ASC' THEN 'A' END AS ASC_OR_DESC, " +
                                         "CASE WHEN tablespace_name = (SELECT default_tablespace FROM user_users) " +
                                         "THEN NULL ELSE tablespace_name END AS tablespace_name  " +
                                         "FROM ALL_IND_COLUMNS c " +
                                         "JOIN ALL_INDEXES i ON i.owner=c.index_owner AND i.index_name = c.index_name and i.table_owner = c.table_owner " +
-                                        "LEFT OUTER JOIN all_ind_expressions e ON e.index_owner=c.index_owner AND e.index_name = c.index_name AND e.column_position = c.column_position   " +
-                                        "LEFT OUTER JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=c.table_name ";
+                                       (database instanceof DmDatabase? "":"LEFT OUTER JOIN all_ind_expressions e ON e.index_owner=c.index_owner AND e.index_name = c.index_name AND e.column_position = c.column_position   ") +
+                                       (database instanceof DmDatabase? "":"LEFT OUTER JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=c.table_name ");
                         if (!isBulkFetchMode || getAllCatalogsStringScratchData() == null) {
                             sql += "WHERE c.TABLE_OWNER = '" + database.correctObjectName(catalogAndSchema.getCatalogName(), Schema.class) + "' ";
                         } else {
                             sql += "WHERE c.TABLE_OWNER IN ('" + database.correctObjectName(catalogAndSchema.getCatalogName(), Schema.class) + "', " + getAllCatalogsStringScratchData() + ")";
                         }
-                        sql += "AND i.OWNER = c.TABLE_OWNER " +
-                                "AND d.object_name IS NULL ";
+
+                        sql +=(database instanceof DmDatabase?"": "AND i.OWNER = c.TABLE_OWNER " +
+                                 "AND d.object_name IS NULL ");
 
 
                         if (!isBulkFetchMode && (tableName != null)) {
@@ -1269,7 +1270,7 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
                     if (database instanceof OracleDatabase) {
                         return queryOracle(catalogAndSchema, null);
                     }
-
+                    
                     String catalog = ((AbstractJdbcDatabase) database).getJdbcCatalogName(catalogAndSchema);
                     String schema = ((AbstractJdbcDatabase) database).getJdbcSchemaName(catalogAndSchema);
                     return extract(databaseMetaData.getTables(catalog, escapeForLike(schema, database), SQL_FILTER_MATCH_ALL, new String[]{"VIEW"}));
@@ -1293,7 +1294,7 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
                     if (viewName != null) {
                         sql += " AND a.VIEW_NAME='" + database.correctObjectName(viewName, View.class) + "'";
                     }
-                    sql += " AND a.VIEW_NAME not in (select mv.name from all_registered_mviews mv where mv.owner=a.owner)";
+                    sql +=   (database instanceof DmDatabase ?"": " AND a.VIEW_NAME not in (select mv.name from all_registered_mviews mv where mv.owner=a.owner)");
 
                     return executeAndExtract(sql, database);
                 }
@@ -1382,9 +1383,9 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
 
                             String sql = "SELECT NULL AS table_cat, c.owner AS table_schem, c.table_name, c.column_name as COLUMN_NAME, c.position AS key_seq, c.constraint_name AS pk_name, k.VALIDATED as VALIDATED " +
                                     "FROM all_cons_columns c, all_constraints k " +
-                                    "LEFT JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=k.table_name " +
+                                    (database instanceof DmDatabase ?"": "LEFT JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=k.table_name ") +
                                     "WHERE k.constraint_type = 'P' " +
-                                    "AND d.object_name IS NULL " +
+                                    (database instanceof DmDatabase ?"": "AND d.object_name IS NULL ") +
                                     "AND k.table_name = '" + table + "' " +
                                     "AND k.owner = '" + ((AbstractJdbcDatabase) database).getJdbcSchemaName(catalogAndSchema) + "' " +
                                     "AND k.constraint_name = c.constraint_name " +
@@ -1504,9 +1505,9 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
                             String sql = "SELECT NULL AS table_cat, c.owner AS table_schem, c.table_name, c.column_name, c.position AS key_seq,c.constraint_name AS pk_name, k.VALIDATED as VALIDATED FROM " +
                                     "all_cons_columns c, " +
                                     "all_constraints k " +
-                                    "LEFT JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=k.table_name " +
+                                    (database instanceof DmDatabase ?"": "LEFT JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=k.table_name ") +
                                     "WHERE k.constraint_type = 'P' " +
-                                    "AND d.object_name IS NULL ";
+                                    (database instanceof DmDatabase ?"": "AND d.object_name IS NULL ");
                             if (getAllCatalogsStringScratchData() == null) {
                                 sql += "AND k.owner='" + catalogAndSchema.getCatalogName() + "' ";
                             } else {
@@ -1644,7 +1645,7 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
                         sql = "select uc.owner AS CONSTRAINT_SCHEM, uc.constraint_name, uc.table_name,uc.status,uc.deferrable,uc.deferred,ui.tablespace_name, ui.index_name, ui.owner as INDEX_CATALOG, uc.VALIDATED as VALIDATED, ac.COLUMN_NAME as COLUMN_NAME " +
                                 "from all_constraints uc " +
                                 "join all_indexes ui on uc.index_name = ui.index_name and uc.owner=ui.table_owner and uc.table_name=ui.table_name " +
-                                "LEFT OUTER JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=ui.table_name " +
+                                (database instanceof DmDatabase ?"": "LEFT OUTER JOIN " + (((OracleDatabase) database).canAccessDbaRecycleBin() ? "dba_recyclebin" : "user_recyclebin") + " d ON d.object_name=ui.table_name ") +
                                 "LEFT JOIN all_cons_columns ac ON ac.OWNER = uc.OWNER AND ac.TABLE_NAME = uc.TABLE_NAME AND ac.CONSTRAINT_NAME = uc.CONSTRAINT_NAME " +
                                 "where uc.constraint_type='U' ";
                         if (tableName != null || getAllCatalogsStringScratchData() == null) {
@@ -1652,7 +1653,7 @@ public class JdbcDatabaseSnapshot extends DatabaseSnapshot {
                         } else {
                             sql += "and uc.owner IN ('" + jdbcSchemaName + "', " + getAllCatalogsStringScratchData() + ")";
                         }
-                        sql += "AND d.object_name IS NULL ";
+                        sql +=   (database instanceof DmDatabase ?"": "AND d.object_name IS NULL ");
 
                         if (tableName != null) {
                             sql += " and uc.table_name = '" + tableName + "'";
