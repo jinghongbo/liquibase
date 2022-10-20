@@ -33,4 +33,8 @@ public class DmDatabase extends OracleDatabase {
     public Integer getDefaultPort() {
         return 5236;
     }
+    @Override
+    public boolean canAccessDbaRecycleBin() {
+        return true;
+    }
 }
